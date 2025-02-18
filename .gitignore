@@ -1,5 +1,4 @@
 # WordPress genel
-.clinerules
 *.log
 wp-config.php
 wp-content/advanced-cache.php
@@ -71,3 +70,11 @@ build/
 # Test ve coverage
 coverage/
 .phpunit.result.cache
+
+# Proje özel dosyalar
+.clinerules
+logs/
+*.sql
+*.zip
+*.tar.gz
+*.tgz
