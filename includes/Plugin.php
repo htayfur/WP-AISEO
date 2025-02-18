@@ -1,34 +1,45 @@
 <?php
 namespace WP_AI_SEO;
 
-/**
- * Ana Plugin sınıfı
- */
 class Plugin {
     /**
-     * Plugin örneği
+     * Plugin sınıfı örneği
      *
      * @var Plugin|null
      */
     private static $instance = null;
 
     /**
-     * Plugin modülleri
+     * Admin sınıfı örneği
      *
-     * @var array
+     * @var Admin\Admin|null
      */
-    private $modules = [];
+    private $admin = null;
+
+    /**
+     * Frontend sınıfı örneği
+     *
+     * @var Frontend\Frontend|null
+     */
+    private $frontend = null;
+
+    /**
+     * Security sınıfı örneği
+     *
+     * @var Security|null
+     */
+    private $security = null;
 
     /**
      * Constructor
      */
     private function __construct() {
+        $this->define_constants();
         $this->init_hooks();
-        $this->load_modules();
     }
 
     /**
-     * Plugin örneğini döndür
+     * Plugin sınıfı örneğini döndür
      *
      * @return Plugin
      */
@@ -40,134 +51,154 @@ class Plugin {
     }
 
     /**
-     * Temel hook'ları başlat
+     * Sabitleri tanımla
+     */
+    private function define_constants(): void {
+        define('WP_AI_SEO_VERSION', '1.0.0');
+        define('WP_AI_SEO_FILE', __FILE__);
+        define('WP_AI_SEO_PATH', plugin_dir_path(dirname(__FILE__)));
+        define('WP_AI_SEO_URL', plugin_dir_url(dirname(__FILE__)));
+        define('WP_AI_SEO_ASSETS', WP_AI_SEO_URL . 'assets/');
+    }
+
+    /**
+     * Hook'ları başlat
      */
     private function init_hooks(): void {
-        // Admin menüsünü ekle
-        add_action('admin_menu', [$this, 'add_admin_menu']);
-        
-        // Admin assets'lerini yükle
-        add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
-        
-        // Ayarlar bağlantısını ekle
-        add_filter('plugin_action_links_' . plugin_basename(WP_AI_SEO_PATH . 'wp-ai-seo.php'), 
-            [$this, 'add_settings_link']
-        );
+        // Plugin aktivasyon/deaktivasyon
+        register_activation_hook(WP_AI_SEO_FILE, [Installer::class, 'activate']);
+        register_deactivation_hook(WP_AI_SEO_FILE, [Installer::class, 'deactivate']);
+        register_uninstall_hook(WP_AI_SEO_FILE, [Installer::class, 'uninstall']);
+
+        // Admin ve Frontend sınıflarını yükle
+        if (is_admin()) {
+            $this->admin = Admin\Admin::instance();
+        } else {
+            $this->frontend = Frontend\Frontend::instance();
+        }
+
+        // Security sınıfını her durumda yükle
+        $this->security = Security::instance();
+
+        // Dil dosyalarını yükle
+        add_action('plugins_loaded', [$this, 'load_textdomain']);
+
+        // Eklenti yükleme kontrolü
+        add_action('plugins_loaded', [$this, 'check_environment']);
     }
 
     /**
-     * Modülleri yükle
+     * Dil dosyalarını yükle
      */
-    private function load_modules(): void {
-        // SEO Temel modülü
-        $this->modules['basic_seo'] = new Modules\BasicSeo();
-        
-        // Teknik SEO modülü
-        $this->modules['technical_seo'] = new Modules\TechnicalSeo();
-        
-        // İçerik optimizasyonu modülü
-        $this->modules['content_optimization'] = new Modules\ContentOptimization();
-        
-        // Gelişmiş SEO modülü
-        $this->modules['advanced_seo'] = new Modules\AdvancedSeo();
-        
-        // Sosyal medya optimizasyonu modülü
-        $this->modules['social_seo'] = new Modules\SocialSeo();
-        
-        // Performans ve güvenlik modülü
-        $this->modules['performance'] = new Modules\Performance();
-    }
-
-    /**
-     * Admin menüsünü ekle
-     */
-    public function add_admin_menu(): void {
-        add_menu_page(
-            __('WP AI-SEO', 'wp-ai-seo'),
-            __('WP AI-SEO', 'wp-ai-seo'),
-            'manage_options',
+    public function load_textdomain(): void {
+        load_plugin_textdomain(
             'wp-ai-seo',
-            [$this, 'render_admin_page'],
-            'dashicons-chart-line',
-            80
+            false,
+            dirname(plugin_basename(WP_AI_SEO_FILE)) . '/languages/'
         );
-
-        // Alt menüler
-        $this->add_submenu_pages();
     }
 
     /**
-     * Alt menüleri ekle
+     * Sistem gereksinimlerini kontrol et
      */
-    private function add_submenu_pages(): void {
-        $submenus = [
-            'basic-seo' => __('Temel SEO', 'wp-ai-seo'),
-            'technical-seo' => __('Teknik SEO', 'wp-ai-seo'),
-            'content-optimization' => __('İçerik Optimizasyonu', 'wp-ai-seo'),
-            'advanced-seo' => __('Gelişmiş SEO', 'wp-ai-seo'),
-            'social-seo' => __('Sosyal Medya', 'wp-ai-seo'),
-            'performance' => __('Performans', 'wp-ai-seo'),
-            'settings' => __('Ayarlar', 'wp-ai-seo'),
+    public function check_environment(): void {
+        // PHP versiyon kontrolü
+        if (version_compare(PHP_VERSION, '7.4', '<')) {
+            add_action('admin_notices', function() {
+                echo '<div class="notice notice-error"><p>' .
+                     sprintf(
+                         __('WP AI-SEO eklentisi PHP 7.4 veya üzeri gerektirir. Şu anki versiyon: %s', 'wp-ai-seo'),
+                         PHP_VERSION
+                     ) .
+                     '</p></div>';
+            });
+            return;
+        }
+
+        // WordPress versiyon kontrolü
+        if (version_compare($GLOBALS['wp_version'], '6.0', '<')) {
+            add_action('admin_notices', function() {
+                echo '<div class="notice notice-error"><p>' .
+                     sprintf(
+                         __('WP AI-SEO eklentisi WordPress 6.0 veya üzeri gerektirir. Şu anki versiyon: %s', 'wp-ai-seo'),
+                         $GLOBALS['wp_version']
+                     ) .
+                     '</p></div>';
+            });
+            return;
+        }
+
+        // Gerekli PHP eklentileri kontrolü
+        $required_extensions = ['mbstring', 'json', 'curl'];
+        $missing_extensions = [];
+
+        foreach ($required_extensions as $ext) {
+            if (!extension_loaded($ext)) {
+                $missing_extensions[] = $ext;
+            }
+        }
+
+        if (!empty($missing_extensions)) {
+            add_action('admin_notices', function() use ($missing_extensions) {
+                echo '<div class="notice notice-error"><p>' .
+                     sprintf(
+                         __('WP AI-SEO eklentisi için gerekli PHP eklentileri eksik: %s', 'wp-ai-seo'),
+                         implode(', ', $missing_extensions)
+                     ) .
+                     '</p></div>';
+            });
+            return;
+        }
+
+        // Yazma izinleri kontrolü
+        $writable_paths = [
+            WP_AI_SEO_PATH . 'logs',
+            wp_upload_dir()['basedir'] . '/wp-ai-seo'
         ];
 
-        foreach ($submenus as $slug => $title) {
-            add_submenu_page(
-                'wp-ai-seo',
-                $title,
-                $title,
-                'manage_options',
-                'wp-ai-seo-' . $slug,
-                [$this, 'render_admin_page']
-            );
+        foreach ($writable_paths as $path) {
+            if (!file_exists($path)) {
+                wp_mkdir_p($path);
+            }
+
+            if (!is_writable($path)) {
+                add_action('admin_notices', function() use ($path) {
+                    echo '<div class="notice notice-error"><p>' .
+                         sprintf(
+                             __('WP AI-SEO eklentisi için %s dizinine yazma izni gerekiyor.', 'wp-ai-seo'),
+                             $path
+                         ) .
+                         '</p></div>';
+                });
+                return;
+            }
         }
     }
 
     /**
-     * Admin sayfasını render et
+     * Admin sınıfı örneğini döndür
+     *
+     * @return Admin\Admin|null
      */
-    public function render_admin_page(): void {
-        $current_page = $_GET['page'] ?? 'wp-ai-seo';
-        require_once WP_AI_SEO_PATH . 'views/admin.php';
+    public function get_admin() {
+        return $this->admin;
     }
 
     /**
-     * Admin assets'lerini yükle
+     * Frontend sınıfı örneğini döndür
+     *
+     * @return Frontend\Frontend|null
      */
-    public function enqueue_admin_assets(): void {
-        $screen = get_current_screen();
-        if (strpos($screen->id, 'wp-ai-seo') !== false) {
-            wp_enqueue_style(
-                'wp-ai-seo-admin',
-                WP_AI_SEO_URL . 'assets/css/admin.css',
-                [],
-                WP_AI_SEO_VERSION
-            );
-
-            wp_enqueue_script(
-                'wp-ai-seo-admin',
-                WP_AI_SEO_URL . 'assets/js/admin.js',
-                ['jquery'],
-                WP_AI_SEO_VERSION,
-                true
-            );
-
-            wp_localize_script('wp-ai-seo-admin', 'wpAiSeoAdmin', [
-                'ajaxUrl' => admin_url('admin-ajax.php'),
-                'nonce' => wp_create_nonce('wp-ai-seo-admin-nonce')
-            ]);
-        }
+    public function get_frontend() {
+        return $this->frontend;
     }
 
     /**
-     * Ayarlar bağlantısını ekle
+     * Security sınıfı örneğini döndür
+     *
+     * @return Security|null
      */
-    public function add_settings_link($links): array {
-        $settings_link = sprintf(
-            '<a href="%s">%s</a>',
-            admin_url('admin.php?page=wp-ai-seo-settings'),
-            __('Ayarlar', 'wp-ai-seo')
-        );
-        array_unshift($links, $settings_link);
-        return $links;
+    public function get_security() {
+        return $this->security;
     }
 }
