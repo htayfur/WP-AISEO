@@ -63,11 +63,6 @@ veya
 - PHP 7.4 veya üzeri
 - MySQL 5.6 veya üzeri
 
-## Güncelleme Geçmişi
-
-### 1.0.0
-- İlk sürüm
-
 ## Katkıda Bulunma
 
 1. Bu depoyu fork edin
@@ -82,6 +77,6 @@ Bu proje GPL v2 veya üzeri lisansı ile lisanslanmıştır. Detaylar için [LIC
 
 ## İletişim
 
-Hakan Tayfur - [@hakantayfur](https://twitter.com/hakantayfur) - iletisim@htayfur.com
+Hakan Tayfur - iletisim@htayfur.com
 
 Proje Linki: [https://htayfur.com/wp-ai-seo](https://htayfur.com/wp-ai-seo)
